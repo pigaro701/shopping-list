@@ -207,7 +207,7 @@
   <script>
     const SUPABASE_URL = 'https://blbdeztziowqbawuaixy.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_yx3_RUu5b3fk31pokgog0A_kOZGunnO';
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     const input = document.getElementById('itemInput');
     const listEl = document.getElementById('list');
@@ -260,7 +260,7 @@
 
     async function loadItems() {
       setStatus('불러오는 중...');
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('shopping_items')
         .select('*')
         .order('created_at', { ascending: true });
@@ -277,7 +277,7 @@
       input.value = '';
 
       setStatus('저장 중...');
-      const { data, error } = await supabase
+      const { data, error } = await db
         .from('shopping_items')
         .insert({ text, checked: false })
         .select()
@@ -292,7 +292,7 @@
 
     async function toggleItem(id, checked) {
       setStatus('저장 중...');
-      const { error } = await supabase
+      const { error } = await db
         .from('shopping_items')
         .update({ checked })
         .eq('id', id);
@@ -306,7 +306,7 @@
 
     async function deleteItem(id) {
       setStatus('삭제 중...');
-      const { error } = await supabase
+      const { error } = await db
         .from('shopping_items')
         .delete()
         .eq('id', id);
@@ -319,7 +319,7 @@
 
     async function clearDone() {
       setStatus('삭제 중...');
-      const { error } = await supabase
+      const { error } = await db
         .from('shopping_items')
         .delete()
         .eq('checked', true);
