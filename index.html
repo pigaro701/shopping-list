@@ -174,6 +174,14 @@
       opacity: 0.3;
       cursor: not-allowed;
     }
+
+    .status {
+      font-size: 0.78rem;
+      color: #a0aec0;
+      text-align: right;
+      margin-bottom: 8px;
+      min-height: 1em;
+    }
   </style>
 </head>
 <body>
@@ -185,6 +193,7 @@
       <button onclick="addItem()">추가</button>
     </div>
 
+    <div class="status" id="status"></div>
     <div class="summary" id="summary"></div>
 
     <ul id="list"></ul>
@@ -194,20 +203,25 @@
     <button class="clear-btn" id="clearBtn" onclick="clearDone()">완료 항목 모두 삭제</button>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
-    const KEY = 'shopping_list';
-    let items = JSON.parse(localStorage.getItem(KEY) || '[]');
+    const SUPABASE_URL = 'https://blbdeztziowqbawuaixy.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_yx3_RUu5b3fk31pokgog0A_kOZGunnO';
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     const input = document.getElementById('itemInput');
     const listEl = document.getElementById('list');
     const emptyEl = document.getElementById('empty');
     const summaryEl = document.getElementById('summary');
     const clearBtn = document.getElementById('clearBtn');
+    const statusEl = document.getElementById('status');
+
+    let items = [];
 
     input.addEventListener('keydown', e => { if (e.key === 'Enter') addItem(); });
 
-    function save() {
-      localStorage.setItem(KEY, JSON.stringify(items));
+    function setStatus(msg) {
+      statusEl.textContent = msg;
     }
 
     function render() {
@@ -216,22 +230,18 @@
       const done = items.filter(i => i.checked).length;
 
       emptyEl.style.display = total === 0 ? 'block' : 'none';
-      summaryEl.textContent = total > 0 ? `전체 ${total}개 중 ` : '';
-      if (total > 0) {
-        summaryEl.innerHTML = `전체 <span>${total}</span>개 &nbsp;·&nbsp; 완료 <span>${done}</span>개`;
-      }
+      summaryEl.innerHTML = total > 0
+        ? `전체 <span>${total}</span>개 &nbsp;·&nbsp; 완료 <span>${done}</span>개`
+        : '';
       clearBtn.disabled = done === 0;
 
-      items.forEach((item, idx) => {
+      items.forEach(item => {
         const li = document.createElement('li');
 
         const cb = document.createElement('input');
         cb.type = 'checkbox';
         cb.checked = item.checked;
-        cb.addEventListener('change', () => {
-          items[idx].checked = cb.checked;
-          save(); render();
-        });
+        cb.addEventListener('change', () => toggleItem(item.id, cb.checked));
 
         const span = document.createElement('span');
         span.className = 'item-text' + (item.checked ? ' done' : '');
@@ -241,31 +251,86 @@
         del.className = 'delete-btn';
         del.innerHTML = '✕';
         del.title = '삭제';
-        del.addEventListener('click', () => {
-          items.splice(idx, 1);
-          save(); render();
-        });
+        del.addEventListener('click', () => deleteItem(item.id));
 
         li.append(cb, span, del);
         listEl.appendChild(li);
       });
     }
 
-    function addItem() {
+    async function loadItems() {
+      setStatus('불러오는 중...');
+      const { data, error } = await supabase
+        .from('shopping_items')
+        .select('*')
+        .order('created_at', { ascending: true });
+
+      if (error) { setStatus('오류: ' + error.message); return; }
+      items = data;
+      setStatus('');
+      render();
+    }
+
+    async function addItem() {
       const text = input.value.trim();
       if (!text) return;
-      items.push({ text, checked: false });
       input.value = '';
-      save(); render();
+
+      setStatus('저장 중...');
+      const { data, error } = await supabase
+        .from('shopping_items')
+        .insert({ text, checked: false })
+        .select()
+        .single();
+
+      if (error) { setStatus('오류: ' + error.message); return; }
+      items.push(data);
+      setStatus('');
+      render();
       input.focus();
     }
 
-    function clearDone() {
-      items = items.filter(i => !i.checked);
-      save(); render();
+    async function toggleItem(id, checked) {
+      setStatus('저장 중...');
+      const { error } = await supabase
+        .from('shopping_items')
+        .update({ checked })
+        .eq('id', id);
+
+      if (error) { setStatus('오류: ' + error.message); await loadItems(); return; }
+      const item = items.find(i => i.id === id);
+      if (item) item.checked = checked;
+      setStatus('');
+      render();
     }
 
-    render();
+    async function deleteItem(id) {
+      setStatus('삭제 중...');
+      const { error } = await supabase
+        .from('shopping_items')
+        .delete()
+        .eq('id', id);
+
+      if (error) { setStatus('오류: ' + error.message); return; }
+      items = items.filter(i => i.id !== id);
+      setStatus('');
+      render();
+    }
+
+    async function clearDone() {
+      setStatus('삭제 중...');
+      const { error } = await supabase
+        .from('shopping_items')
+        .delete()
+        .eq('checked', true);
+
+      if (error) { setStatus('오류: ' + error.message); return; }
+      items = items.filter(i => !i.checked);
+      setStatus('');
+      render();
+    }
+
+    loadItems();
   </script>
 </body>
 </html>
